@@ -127,6 +127,24 @@ func (a *authBlob) matchClaim(wanted models.Claims) bool {
 	return false
 }
 
+func (a *authBlob) isLicensed(scope, action string) bool {
+	switch action {
+	case "list", "get":
+		return true
+	default:
+		switch scope {
+		case "roles", "tenants":
+			license := a.f.dt.LicenseFor("rbac")
+			if license != nil && license.Active {
+				return true
+			}
+			return false
+		default:
+			return true
+		}
+	}
+}
+
 type Frontend struct {
 	Logger     logger.Logger
 	FileRoot   string
@@ -270,7 +288,7 @@ func (fe *Frontend) userAuth() gin.HandlerFunc {
 			}
 			token = t
 		}
-		auth := &authBlob{claim: token}
+		auth := &authBlob{claim: token, f: fe}
 		valid := true
 		rt := fe.rt(c, "users", "roles", "tenants", "machines")
 		rt.Do(func(stores backend.Stores) {
@@ -525,7 +543,8 @@ func assureContentType(c *gin.Context, ct string) bool {
 func (f *Frontend) assureAuth(c *gin.Context,
 	wantsClaims models.Claims,
 	scope, action, specific string) bool {
-	if f.getAuth(c).matchClaim(wantsClaims) {
+	auth := f.getAuth(c)
+	if auth.matchClaim(wantsClaims) && auth.isLicensed(scope, action) {
 		return true
 	}
 	f.rt(c).Auditf("Failed auth '%s' '%s' '%s' - %s",
@@ -541,12 +560,16 @@ func (f *Frontend) assureAuth(c *gin.Context,
 		}
 		res.Errorf("Not Found")
 	default:
-		res := &models.Error{
+		res = &models.Error{
 			Type: "AUTH",
 			Code: http.StatusForbidden,
 		}
 		res.Errorf("Cannot access %s", c.Request.URL.String())
-		res.Errorf("Requires: %s %s %s", scope, action, specific)
+		if auth.isLicensed(scope, action) {
+			res.Errorf("Requires: %s %s %s", scope, action, specific)
+		} else {
+			res.Errorf("%s %s is a licensed enterprise feature.  Contact support@rackn.com", scope, action)
+		}
 	}
 	c.AbortWithStatusJSON(res.Code, res)
 	return false
