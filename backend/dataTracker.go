@@ -573,6 +573,7 @@ type DataTracker struct {
 	publishers          *Publishers
 	macAddrMap          map[string]string
 	macAddrMux          *sync.RWMutex
+	licenses            models.LicenseBundle
 }
 
 func (p *DataTracker) LogFor(s string) logger.Logger {
@@ -762,6 +763,7 @@ func (p *DataTracker) rebuildCache(loadRT *RequestTracker) (hard, soft *models.E
 			p.rootTemplate.Option("missingkey=error")
 		}
 	}
+	p.loadLicense(loadRT)
 	return
 }
 

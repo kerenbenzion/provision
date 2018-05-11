@@ -31,6 +31,7 @@ func (f *Frontend) GetInfo(c *gin.Context, drpid string) (*models.Info, *models.
 		DhcpEnabled:        !f.NoDhcp,
 		ProvisionerEnabled: !f.NoProv,
 		BinlEnabled:        !f.NoBinl,
+		License:            f.dt.AllLicenses(),
 	}
 	i.Fill()
 
